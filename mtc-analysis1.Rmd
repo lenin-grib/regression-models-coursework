@@ -1,0 +1,130 @@
+---
+title: "Motor Trend analysis: Automatic or manual transmission? "
+author: "Daria Stepanyan"
+output:
+  html_document:
+    keep_md: yes
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning = FALSE, cache = TRUE)
+```
+
+## Executive summary
+
+This report contains analysis of set of cars data for Motor Trend, a magazine about the automobile industry. It's dedicated to exploring the relationship between transmission types and miles per gallon (MPG) (outcome), particularly the following two questions:  
+1. Is an automatic or manual transmission better for MPG?  
+2. Quantify the MPG difference between automatic and manual transmissions.  
+Regression analysis was performed, and the results obtained show that factors such as number of cylinders, horsepower and weight mostly affect mpg, and the influence of transmission type is not statisctically significant.
+
+## Exploratory analysis
+
+```{r data}
+data(mtcars)
+str(mtcars)
+```
+
+The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973-74 models).
+Dataset description can be found here: https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/mtcars.html
+
+Let's take a look at the rest of the variables relations to mpg.
+
+```{r vars}
+cor(mtcars$mpg,mtcars[,-1])
+```
+
+From the correlation results, we can see, that the cyl, hp, wt and carb are negatively correlated with mpg.
+
+Transmission data is stored in variable "am" (0 = automatic, 1 = manual). For easier interpreptation, let's convert it to the factor variable (along with the cylinders number)
+
+```{r am-fact}
+mtcars$am <- factor(mtcars$am,labels=c('Automatic','Manual'))
+mtcars$cyl <- factor(mtcars$cyl)
+```
+
+The boxplot (appendix 1) shows that cars with manual transmission have better mpg (can go more distance on the same amount of gas). When plotting the data across different cylinders amount though, the result is not as straigntforward (Appendix 2).
+
+## Regression analysis
+
+Let's see how much of the variance in mpg is actually explained by transmission type.
+
+```{r varam}
+summary(lm(mpg~ am,data=mtcars))$r.squared
+```
+
+While manual transmission cars seem to have more mpg on average, with this variability we can't say that transmission type is the only influencing parameter.
+This needs to be further explored in a multiple linear regression analysis.
+
+We use the step function in R for a stepwise regression, where the choice of predictor is carried out automatically.
+
+```{r step}
+best = step(lm(data = mtcars, mpg ~ .),trace=0)
+best$call
+summary(best)$r.squared
+```
+
+Interestingly, the qsec is chosen as a defining parameter, since it clearly depends on car's design and such parameters as horse power and number of cylinders. Let's see if the model will be better fitted if we use those instead of their dependant, qsec.
+
+```{r varfinal}
+final <- lm(mpg~ am+wt+hp+cyl,data=mtcars)
+summary(final)$r.squared
+```
+
+This model explains almost the same amount of variance in mpg, but is way easier for interpretation, so let's assume it as our final model.
+```{r amfinal}
+summary(final)$coefficients
+```
+
+We can see that with all other parameters being equal manual transmission increases mpg by `r summary(final)$coefficients[2,1]`. Residuals (see Appendix 3) are also randomly scattered.
+
+## Inference
+
+However with 95% confidence we can't say that manual transmission always has a positive effect on mpg, so the influence of transmission type is not statistically sinificant.
+
+```{r conf}
+confint(final, 'amManual')
+```
+
+We can also check if our model is significant, in other words is a better fitted than a model with just am as predictor.
+
+```{r anova}
+anova(lm(mpg~ am,data=mtcars), final)
+```
+As the p-value is significant, we reject the null hypothesis that the models are similar and conclude that the additional variables in our final model are necessary.
+
+## Final conclusion
+
+According to the above research, transmission type is not the most influential parameter for the final mpg value (weight, horsepower and number of cylinders should be considered primarily). And although, according to the model, choosing manual transmission over automatic with all the rest being equal can increase mpg by `r summary(final)$coefficients[2,1]`, those results are not significant enough and more studies for each car design configuration must be conducted.
+
+******
+
+# Appendix
+
+## Apendix 1. Boxplot of mpg per transmission type
+
+```{r app1}
+boxplot(mtcars$mpg ~ mtcars$am, data = mtcars, 
+        ylab="miles per gallon",
+        xlab="transmission type",
+        main="mpg vs transmission type", 
+        col="green")
+```
+
+## Appendix 2. Boxplot of mpg per transmission type per cylinder
+
+```{r app2}
+boxplot(mtcars$mpg ~mtcars$am + mtcars$cyl, data = mtcars, 
+        ylab="miles per gallon",
+        xlab="transmission type/number of cylinders",
+        main="mpg vs transmission type for different amount of cylinders", 
+        col="orange")
+```
+
+## Appendix 3. Residuals
+
+```{r app3}
+par(mfrow=c(2,2)) 
+plot(final)
+```
+
